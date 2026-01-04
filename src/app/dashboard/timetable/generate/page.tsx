@@ -32,7 +32,7 @@ export default function GenerateTimetablePage() {
     try {
       const data = await api.assignments.getAll();
       setAssignments(data);
-      setSelectedAssignments(data.map((a) => a._id));
+      setSelectedAssignments(data.map((a: Assignment) => a._id));
     } catch (error) {
       console.error(error);
       alert("Failed to load assignments");
@@ -175,7 +175,7 @@ export default function GenerateTimetablePage() {
               checked={selectedAssignments.length === assignments.length}
               onChange={(e) => {
                 if (e.target.checked) {
-                  setSelectedAssignments(assignments.map((a) => a._id));
+                  setSelectedAssignments(assignments.map((a: Assignment) => a._id));
                 } else {
                   setSelectedAssignments([]);
                 }
@@ -184,7 +184,7 @@ export default function GenerateTimetablePage() {
             <span className="font-semibold">Select All</span>
           </label>
           
-          {assignments.map((a) => (
+          {assignments.map((a: Assignment) => (
             <label key={a._id} className="flex items-center gap-2">
               <input
                 type="checkbox"

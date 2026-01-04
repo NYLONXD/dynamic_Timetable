@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Search, Trash2, Loader2, Book, FlaskConical, Presentation, Users } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, Book, FlaskConical, Presentation, Users, Edit } from "lucide-react";
+import { toast } from "sonner";
 
 export default function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -16,6 +17,7 @@ export default function SubjectsPage() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     code: "",
@@ -37,40 +39,72 @@ export default function SubjectsPage() {
       setSubjects(data);
     } catch (error) {
       console.error(error);
+      toast.error("Failed to load subjects");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setForm({
+      code: "",
+      name: "",
+      category: "theory",
+      defaultCredits: 3,
+      requiresConsecutive: false,
+      defaultSessionLength: 1,
+    });
+    setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.subjects.create(form);
-      setForm({
-        code: "",
-        name: "",
-        category: "theory",
-        defaultCredits: 3,
-        requiresConsecutive: false,
-        defaultSessionLength: 1,
-      });
+      if (editingId) {
+        await api.subjects.update(editingId, form);
+        toast.success("Subject updated successfully");
+      } else {
+        await api.subjects.create(form);
+        toast.success("Subject created successfully");
+      }
+      resetForm();
       setOpen(false);
       loadSubjects();
     } catch (error: any) {
-      alert(error.message || "Failed to create subject");
+      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} subject`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleEdit = (subject: Subject) => {
+    setForm({
+      code: subject.code,
+      name: subject.name,
+      category: subject.category,
+      defaultCredits: subject.defaultCredits || 3,
+      requiresConsecutive: subject.requiresConsecutive || false,
+      defaultSessionLength: subject.defaultSessionLength || 1,
+    });
+    setEditingId(subject._id);
+    setOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this subject?")) return;
     try {
       await api.subjects.delete(id);
       loadSubjects();
+      toast.success("Subject deleted successfully");
     } catch (error: any) {
-      alert(error.message || "Failed to delete subject");
+      toast.error(error.message || "Failed to delete subject");
+    }
+  };
+
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      resetForm();
     }
   };
 
@@ -96,14 +130,16 @@ export default function SubjectsPage() {
           <p className="text-muted-foreground">Define courses and their credit requirements.</p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> Add Subject</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New Subject</DialogTitle>
-              <DialogDescription>Enter the course details below.</DialogDescription>
+              <DialogTitle>{editingId ? "Edit Subject" : "Add New Subject"}</DialogTitle>
+              <DialogDescription>
+                {editingId ? "Update course details" : "Enter the course details below"}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
@@ -141,7 +177,7 @@ export default function SubjectsPage() {
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting}>
                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                   Save Subject
+                   {editingId ? "Update Subject" : "Save Subject"}
                 </Button>
               </DialogFooter>
             </form>
@@ -187,9 +223,14 @@ export default function SubjectsPage() {
                           </td>
                           <td className="p-4 text-muted-foreground">{s.defaultCredits}</td>
                           <td className="p-4 text-right">
-                             <Button variant="ghost" size="icon" onClick={() => handleDelete(s._id)} className="text-muted-foreground hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                             </Button>
+                             <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(s)} className="text-muted-foreground hover:text-foreground">
+                                   <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(s._id)} className="text-muted-foreground hover:text-destructive">
+                                   <Trash2 className="h-4 w-4" />
+                                </Button>
+                             </div>
                           </td>
                        </tr>
                     ))

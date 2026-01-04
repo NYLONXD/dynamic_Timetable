@@ -1,5 +1,5 @@
 import "./globals.css"
-// import { ClerkProvider } from "@clerk/nextjs"
+import { ToastProvider } from "@/components/toast-provider"
 
 export const metadata = {
   title: "Dynamic Timetable",
@@ -8,12 +8,11 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    
-      <html lang="en">
-        <body className="min-h-screen bg-background text-foreground">
-          {children}
-        </body>
-      </html>
-    
+    <html lang="en">
+      <body className="min-h-screen bg-background text-foreground">
+        {children}
+        <ToastProvider />
+      </body>
+    </html>
   )
 }

@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Search, Trash2, Loader2, Mail, Clock } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, Mail, Clock, Edit } from "lucide-react";
+import { toast } from "sonner";
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -16,6 +17,7 @@ export default function TeachersPage() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     staffId: "",
@@ -37,33 +39,65 @@ export default function TeachersPage() {
       setTeachers(data);
     } catch (error) {
       console.error(error);
+      toast.error("Failed to load teachers");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setForm({ staffId: "", name: "", email: "", department: "", maxHoursPerDay: 6, maxHoursPerWeek: 30 });
+    setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.teachers.create(form);
-      setForm({ staffId: "", name: "", email: "", department: "", maxHoursPerDay: 6, maxHoursPerWeek: 30 });
+      if (editingId) {
+        await api.teachers.update(editingId, form);
+        toast.success("Teacher updated successfully");
+      } else {
+        await api.teachers.create(form);
+        toast.success("Teacher created successfully");
+      }
+      resetForm();
       setOpen(false);
       loadTeachers();
     } catch (error: any) {
-      alert(error.message || "Failed to create teacher");
+      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} teacher`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleEdit = (teacher: Teacher) => {
+    setForm({
+      staffId: teacher.staffId,
+      name: teacher.name,
+      email: teacher.email || "",
+      department: teacher.department || "",
+      maxHoursPerDay: teacher.maxHoursPerDay || 6,
+      maxHoursPerWeek: teacher.maxHoursPerWeek || 30,
+    });
+    setEditingId(teacher._id);
+    setOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this teacher?")) return;
     try {
       await api.teachers.delete(id);
       loadTeachers();
+      toast.success("Teacher deleted successfully");
     } catch (error: any) {
-      alert(error.message || "Failed to delete teacher");
+      toast.error(error.message || "Failed to delete teacher");
+    }
+  };
+
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      resetForm();
     }
   };
 
@@ -80,14 +114,16 @@ export default function TeachersPage() {
           <p className="text-muted-foreground">Manage faculty members and their workload limits.</p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> Add Teacher</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Teacher</DialogTitle>
-              <DialogDescription>Register a new faculty member to the system.</DialogDescription>
+              <DialogTitle>{editingId ? "Edit Teacher" : "Add New Teacher"}</DialogTitle>
+              <DialogDescription>
+                {editingId ? "Update teacher information" : "Register a new faculty member to the system"}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
@@ -121,7 +157,7 @@ export default function TeachersPage() {
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting}>
                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                   Save Teacher
+                   {editingId ? "Update Teacher" : "Save Teacher"}
                 </Button>
               </DialogFooter>
             </form>
@@ -177,9 +213,14 @@ export default function TeachersPage() {
                              </div>
                           </td>
                           <td className="p-4 text-right">
-                             <Button variant="ghost" size="icon" onClick={() => handleDelete(t._id)} className="text-muted-foreground hover:text-destructive">
-                                <Trash2 className="h-4 w-4" />
-                             </Button>
+                             <div className="flex justify-end gap-2">
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(t)} className="text-muted-foreground hover:text-foreground">
+                                   <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(t._id)} className="text-muted-foreground hover:text-destructive">
+                                   <Trash2 className="h-4 w-4" />
+                                </Button>
+                             </div>
                           </td>
                        </tr>
                     ))

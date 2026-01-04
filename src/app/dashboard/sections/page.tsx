@@ -6,17 +6,19 @@ import { Section } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog"
-import { Plus, Search, Trash2, Loader2, Users, BookOpen } from "lucide-react"
+import { Plus, Search, Trash2, Loader2, Users, BookOpen, Edit } from "lucide-react"
+import { toast } from "sonner"
 
 export default function SectionsPage() {
   const [sections, setSections] = useState<Section[]>([])
   const [loading, setLoading] = useState(true)
-  const [open, setOpen] = useState(false) // Dialog state
+  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
-  // Form State
   const [form, setForm] = useState({
     code: "",
     name: "",
@@ -24,7 +26,6 @@ export default function SectionsPage() {
     branch: "",
     strength: 60,
   })
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     loadSections()
@@ -37,39 +38,67 @@ export default function SectionsPage() {
       setSections(data)
     } catch (error) {
       console.error(error)
-      // In a real app, use a toast here
+      toast.error("Failed to load sections")
     } finally {
       setLoading(false)
     }
+  }
+
+  const resetForm = () => {
+    setForm({ code: "", name: "", semester: 1, branch: "", strength: 60 })
+    setEditingId(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await api.sections.create(form)
-      setForm({ code: "", name: "", semester: 1, branch: "", strength: 60 })
-      setOpen(false) // Close dialog
+      if (editingId) {
+        await api.sections.update(editingId, form)
+        toast.success("Section updated successfully")
+      } else {
+        await api.sections.create(form)
+        toast.success("Section created successfully")
+      }
+      resetForm()
+      setOpen(false)
       loadSections()
-      alert("Section created successfully")
     } catch (error: any) {
-      alert(error.message || "Failed to create section")
+      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} section`)
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const handleEdit = (section: Section) => {
+    setForm({
+      code: section.code,
+      name: section.name || "",
+      semester: section.semester,
+      branch: section.branch,
+      strength: section.strength || 60,
+    })
+    setEditingId(section._id)
+    setOpen(true)
+  }
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this section? This action cannot be undone.")) return
     try {
       await api.sections.delete(id)
       loadSections()
+      toast.success("Section deleted successfully")
     } catch (error: any) {
-      alert(error.message || "Failed to delete section")
+      toast.error(error.message || "Failed to delete section")
     }
   }
 
-  // Filter sections based on search
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen)
+    if (!isOpen) {
+      resetForm()
+    }
+  }
+
   const filteredSections = sections.filter(s => 
     s.code.toLowerCase().includes(search.toLowerCase()) ||
     s.branch.toLowerCase().includes(search.toLowerCase())
@@ -77,14 +106,13 @@ export default function SectionsPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
          <div>
             <h1 className="text-3xl font-bold tracking-tight">Sections</h1>
             <p className="text-muted-foreground">Manage your class sections and student capacities.</p>
          </div>
          
-         <Dialog open={open} onOpenChange={setOpen}>
+         <Dialog open={open} onOpenChange={handleDialogChange}>
             <DialogTrigger asChild>
                <Button className="shadow-sm">
                   <Plus className="mr-2 h-4 w-4" /> Add Section
@@ -92,9 +120,9 @@ export default function SectionsPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                <DialogHeader>
-                  <DialogTitle>Add New Section</DialogTitle>
+                  <DialogTitle>{editingId ? "Edit Section" : "Add New Section"}</DialogTitle>
                   <DialogDescription>
-                     Create a new section for a specific branch and semester.
+                     {editingId ? "Update section details" : "Create a new section for a specific branch and semester"}
                   </DialogDescription>
                </DialogHeader>
                <form onSubmit={handleSubmit} className="grid gap-4 py-4">
@@ -146,7 +174,7 @@ export default function SectionsPage() {
                   <DialogFooter>
                      <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Create Section
+                        {editingId ? "Update Section" : "Create Section"}
                      </Button>
                   </DialogFooter>
                </form>
@@ -154,7 +182,6 @@ export default function SectionsPage() {
          </Dialog>
       </div>
       
-      {/* Stats Overview */}
       <div className="grid gap-4 md:grid-cols-3">
          <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -178,7 +205,6 @@ export default function SectionsPage() {
          </Card>
       </div>
 
-      {/* Main Content Table */}
       <Card className="border shadow-sm">
          <div className="p-4 flex items-center gap-4 border-b">
             <div className="relative flex-1 max-w-sm">
@@ -228,14 +254,24 @@ export default function SectionsPage() {
                            </td>
                            <td className="p-4 text-muted-foreground">{s.strength || "-"} students</td>
                            <td className="p-4 text-right">
-                              <Button
-                                 variant="ghost"
-                                 size="icon"
-                                 className="text-muted-foreground hover:text-destructive"
-                                 onClick={() => handleDelete(s._id)}
-                              >
-                                 <Trash2 className="h-4 w-4" />
-                              </Button>
+                              <div className="flex justify-end gap-2">
+                                 <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-foreground"
+                                    onClick={() => handleEdit(s)}
+                                 >
+                                    <Edit className="h-4 w-4" />
+                                 </Button>
+                                 <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-muted-foreground hover:text-destructive"
+                                    onClick={() => handleDelete(s._id)}
+                                 >
+                                    <Trash2 className="h-4 w-4" />
+                                 </Button>
+                              </div>
                            </td>
                         </tr>
                      ))

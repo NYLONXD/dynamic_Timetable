@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Search, Trash2, Loader2, BookOpen, Users, Layers, Filter, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, BookOpen, Users, Layers, Filter, AlertCircle, CheckCircle2, Clock, Edit } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -20,6 +21,7 @@ export default function AssignmentsPage() {
   const [search, setSearch] = useState("");
   const [filterConstraint, setFilterConstraint] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     sectionId: "",
@@ -49,42 +51,72 @@ export default function AssignmentsPage() {
       setTeachers(teachersData);
     } catch (error) {
       console.error(error);
-      alert("Failed to load data");
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetForm = () => {
+    setForm({
+      sectionId: "",
+      subjectId: "",
+      teacherId: "",
+      sessions: { perWeek: 3, length: 1 },
+      constraint: "hard",
+      priority: 5,
+    });
+    setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await api.assignments.create(form);
-      setForm({
-        sectionId: "",
-        subjectId: "",
-        teacherId: "",
-        sessions: { perWeek: 3, length: 1 },
-        constraint: "hard",
-        priority: 5,
-      });
+      if (editingId) {
+        await api.assignments.update(editingId, form);
+        toast.success("Assignment updated successfully");
+      } else {
+        await api.assignments.create(form);
+        toast.success("Assignment created successfully");
+      }
+      resetForm();
       setOpen(false);
       loadData();
-      alert("Assignment created successfully");
     } catch (error: any) {
-      alert(error.message || "Failed to create assignment");
+      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} assignment`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  const handleEdit = (assignment: Assignment) => {
+    setForm({
+      sectionId: typeof assignment.sectionId === "object" ? assignment.sectionId._id : assignment.sectionId,
+      subjectId: typeof assignment.subjectId === "object" ? assignment.subjectId._id : assignment.subjectId,
+      teacherId: typeof assignment.teacherId === "object" ? assignment.teacherId._id : assignment.teacherId,
+      sessions: assignment.sessions,
+      constraint: assignment.constraint,
+      priority: assignment.priority || 5,
+    });
+    setEditingId(assignment._id);
+    setOpen(true);
+  };
+
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this assignment?")) return;
     try {
       await api.assignments.delete(id);
       loadData();
+      toast.success("Assignment deleted successfully");
     } catch (error: any) {
-      alert(error.message || "Failed to delete assignment");
+      toast.error(error.message || "Failed to delete assignment");
+    }
+  };
+
+  const handleDialogChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (!isOpen) {
+      resetForm();
     }
   };
 
@@ -108,21 +140,22 @@ export default function AssignmentsPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Subject Assignments</h1>
           <p className="text-muted-foreground mt-1">Map teachers to subjects for each section</p>
         </div>
 
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> New Assignment</Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Create New Assignment</DialogTitle>
-              <DialogDescription>Assign a teacher to teach a subject for a specific section.</DialogDescription>
+              <DialogTitle>{editingId ? "Edit Assignment" : "Create New Assignment"}</DialogTitle>
+              <DialogDescription>
+                {editingId ? "Update assignment details" : "Assign a teacher to teach a subject for a specific section"}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -245,7 +278,7 @@ export default function AssignmentsPage() {
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Create Assignment
+                  {editingId ? "Update Assignment" : "Create Assignment"}
                 </Button>
               </DialogFooter>
             </form>
@@ -253,7 +286,6 @@ export default function AssignmentsPage() {
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <div className="p-6 flex flex-row items-center justify-between space-y-0">
@@ -299,7 +331,6 @@ export default function AssignmentsPage() {
         </Card>
       </div>
 
-      {/* Main Table */}
       <Card className="border shadow-sm">
         <div className="p-4 flex flex-col sm:flex-row gap-4 border-b">
           <div className="relative flex-1">
@@ -433,14 +464,24 @@ export default function AssignmentsPage() {
                       </div>
                     </td>
                     <td className="p-4 text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(a._id)}
-                        className="text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEdit(a)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(a._id)}
+                          className="text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Generation, TimetableSlot, Section } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Loader2, Calendar, Clock, AlertTriangle, CheckCircle2, Users, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
+import Link from "next/link";
 
 export default function TimetableViewPage() {
   const params = useParams();
+  const router = useRouter();
   const [generation, setGeneration] = useState<Generation | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<string>("");
@@ -22,15 +28,6 @@ export default function TimetableViewPage() {
       const data = await api.timetable.getOne(params.id as string);
       setGeneration(data);
       
-      // Extract unique sections
-      const uniqueSections = Array.from(
-        new Set(
-          data.slots?.map((s: TimetableSlot) => 
-            typeof s.sectionId === "object" ? s.sectionId._id : s.sectionId
-          ) || []
-        )
-      );
-      
       const sectionObjects = data.slots
         ?.filter((s: TimetableSlot) => typeof s.sectionId === "object")
         .map((s: TimetableSlot) => s.sectionId as Section)
@@ -44,136 +41,210 @@ export default function TimetableViewPage() {
       }
     } catch (error) {
       console.error(error);
-      alert("Failed to load timetable");
+      toast.error("Failed to load timetable");
     } finally {
       setLoading(false);
     }
   };
 
   const handleActivate = async () => {
-    if (!confirm("Activate this timetable? This will deactivate all others.")) return;
     try {
       await api.timetable.activate(params.id as string);
       loadTimetable();
-      alert("Timetable activated successfully");
+      toast.success("Timetable activated successfully");
     } catch (error: any) {
-      alert(error.message || "Failed to activate timetable");
+      toast.error(error.message || "Failed to activate timetable");
     }
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
-  if (!generation) return <div className="p-6">Timetable not found</div>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!generation) {
+    return (
+      <div className="text-center py-16">
+        <h3 className="text-lg font-semibold mb-2">Timetable not found</h3>
+        <Button onClick={() => router.push("/dashboard/timetable")}>
+          Back to Timetables
+        </Button>
+      </div>
+    );
+  }
 
   const sectionSlots = generation.slots?.filter(
     (s) => (typeof s.sectionId === "object" ? s.sectionId._id : s.sectionId) === selectedSection
   ) || [];
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">{generation.name}</h1>
-        <div className="flex gap-2">
-          <span className={`px-3 py-1 rounded ${
-            generation.status === 'active' ? 'bg-green-500 text-white' :
-            generation.status === 'draft' ? 'bg-yellow-500 text-white' :
-            'bg-gray-500 text-white'
+    <div className="space-y-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/timetable">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">{generation.name}</h1>
+            <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                {new Date(generation.createdAt).toLocaleDateString()}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-4 w-4" />
+                {generation.generationTime?.toFixed(2)}s
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-2 items-center">
+          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+            generation.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+            generation.status === 'draft' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+            'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300'
           }`}>
             {generation.status.toUpperCase()}
-          </span>
+          </div>
           {generation.status !== 'active' && (
-            <Button onClick={handleActivate}>Activate</Button>
+            <Button onClick={handleActivate}>
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Activate
+            </Button>
           )}
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-600">Total Slots</div>
-          <div className="text-2xl font-bold">{generation.slots?.length || 0}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-600">Conflicts</div>
-          <div className="text-2xl font-bold">{generation.conflicts?.length || 0}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-600">Sections</div>
-          <div className="text-2xl font-bold">{sections.length}</div>
-        </div>
-        <div className="bg-white p-4 rounded shadow">
-          <div className="text-sm text-gray-600">Generation Time</div>
-          <div className="text-2xl font-bold">{generation.generationTime?.toFixed(2)}s</div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Total Slots</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{generation.slots?.length || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Conflicts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+              {generation.conflicts?.length || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Sections</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{sections.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Working Days</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{generation.config.days.length}</div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Conflicts */}
       {generation.conflicts && generation.conflicts.length > 0 && (
-        <div className="bg-red-50 border border-red-200 p-4 rounded">
-          <h3 className="font-semibold text-red-800 mb-2">Conflicts Detected:</h3>
-          {generation.conflicts.map((c, i) => (
-            <div key={i} className="text-sm text-red-700 mb-1">
-              [{c.severity.toUpperCase()}] {c.message}
-            </div>
-          ))}
-        </div>
+        <Card className="border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+          <CardHeader>
+            <CardTitle className="text-red-800 dark:text-red-300 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              Conflicts Detected
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {generation.conflicts.map((c, i) => (
+              <div key={i} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+                <span className="font-medium uppercase text-xs mt-0.5 px-1.5 py-0.5 bg-red-200 dark:bg-red-800 rounded">
+                  {c.severity}
+                </span>
+                <span className="flex-1">{c.message}</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
       )}
 
-      {/* Section Selector */}
-      <div className="bg-white p-4 rounded shadow">
-        <label className="font-semibold mr-3">Select Section:</label>
-        <select
-          className="border rounded px-3 py-2"
-          value={selectedSection}
-          onChange={(e) => setSelectedSection(e.target.value)}
-        >
-          {sections.map((s) => (
-            <option key={s._id} value={s._id}>
-              {s.code} - {s.name || s.branch}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Timetable Grid */}
-      <div className="bg-white p-6 rounded shadow overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-200">
-              <th className="border p-3 text-left">Period</th>
-              {generation.config.days.map((day) => (
-                <th key={day} className="border p-3 text-center">{day}</th>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Section View
+            </CardTitle>
+            <select
+              className="h-9 rounded-md border bg-transparent px-3 text-sm shadow-sm"
+              value={selectedSection}
+              onChange={(e) => setSelectedSection(e.target.value)}
+            >
+              {sections.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.code} - {s.name || s.branch}
+                </option>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: generation.config.periodsPerDay }, (_, i) => i + 1).map((period) => (
-              <tr key={period}>
-                <td className="border p-3 font-semibold bg-gray-50">{period}</td>
-                {generation.config.days.map((day) => {
-                  const slot = sectionSlots.find((s) => s.day === day && s.period === period);
-                  
-                  return (
-                    <td key={day} className="border p-3 text-center">
-                      {slot ? (
-                        <div className="bg-blue-100 p-2 rounded">
-                          <div className="font-semibold text-sm">
-                            {typeof slot.subjectId === "object" ? slot.subjectId.code : "?"}
-                          </div>
-                          <div className="text-xs text-gray-600">
-                            {typeof slot.teacherId === "object" ? slot.teacherId.name : "?"}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-[800px]">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left p-3 font-medium bg-muted/50">Period</th>
+                  {generation.config.days.map((day) => (
+                    <th key={day} className="text-center p-3 font-medium bg-muted/50">
+                      {day}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: generation.config.periodsPerDay }, (_, i) => i + 1).map((period) => (
+                  <tr key={period} className="border-b">
+                    <td className="p-3 font-semibold bg-muted/30">Period {period}</td>
+                    {generation.config.days.map((day) => {
+                      const slot = sectionSlots.find((s) => s.day === day && s.period === period);
+                      
+                      return (
+                        <td key={day} className="p-2 text-center">
+                          {slot ? (
+                            <div className="bg-primary/10 hover:bg-primary/20 transition-colors p-3 rounded-lg border border-primary/20">
+                              <div className="font-semibold text-sm">
+                                {typeof slot.subjectId === "object" ? slot.subjectId.code : "?"}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {typeof slot.teacherId === "object" ? slot.teacherId.name : "?"}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground text-sm">—</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

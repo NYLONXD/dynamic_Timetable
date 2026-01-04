@@ -3,17 +3,18 @@
 import { useState } from "react"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { Menu, X, LayoutDashboard, Users, Calendar, Settings } from "lucide-react"
+import { Menu, X, LayoutDashboard, Users, BookOpen, UserCheck, Calendar, ListChecks, Clock } from "lucide-react"
 
 export default function Sidebar() {
   const [open, setOpen] = useState(false)
 
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/sections", label: "Sections", icon: BookOpen },
+    { href: "/dashboard/subjects", label: "Subjects", icon: ListChecks },
     { href: "/dashboard/teachers", label: "Teachers", icon: Users },
-    { href: "/dashboard/classes", label: "Classes", icon: Calendar },
+    { href: "/dashboard/assignments", label: "Assignments", icon: UserCheck },
     { href: "/dashboard/timetable", label: "Timetable", icon: Calendar },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
   ]
 
   return (

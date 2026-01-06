@@ -95,8 +95,17 @@ export default function GenerateTimetablePage() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <Card>
+      {loading && (
+        <div className="text-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Generating timetable using genetic algorithm...</p>
+          <p className="text-sm text-muted-foreground mt-2">This may take 10-30 seconds</p>
+        </div>
+      )}
+
+      {!loading && (
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -297,6 +306,7 @@ export default function GenerateTimetablePage() {
           </Button>
         </div>
       </form>
+      )}
     </div>
   );
 }

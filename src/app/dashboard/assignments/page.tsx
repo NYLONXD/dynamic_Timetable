@@ -2,21 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/utils";
-import { Assignment, Section, Subject, Teacher } from "@/lib/types";
+import { docOf, errorMessage, idOf } from "@/lib/utils";
+import { Assignment, Room, Section, Subject, Teacher } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Plus, Search, Trash2, Loader2, BookOpen, Users, Layers, Filter, AlertCircle, CheckCircle2, Clock, Edit } from "lucide-react";
+import { Plus, Search, Trash2, Loader2, BookOpen, Users, Layers, Filter, AlertCircle, CheckCircle2, Clock, Edit, Link2, Pin } from "lucide-react";
 import { toast } from "sonner";
+
+const emptyForm = {
+  sectionIds: [] as string[],
+  subjectId: "",
+  teacherId: "",
+  sessions: { perWeek: 3, length: 1 },
+  constraint: "hard" as "hard" | "soft",
+  priority: 5,
+  batch: "",
+  parallelGroup: "",
+  roomId: "",
+  studentCount: "" as number | "",
+};
+
+// "CSE3-A + CSE3-B" for a combined class, "CSE3-A B1" for a batch
+const sectionsLabel = (a: Pick<Assignment, "sectionIds" | "batch">) =>
+  a.sectionIds.map((s) => docOf(s)?.code ?? "?").join(" + ") + (a.batch ? ` ${a.batch}` : "");
 
 export default function AssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -24,14 +42,7 @@ export default function AssignmentsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    sectionId: "",
-    subjectId: "",
-    teacherId: "",
-    sessions: { perWeek: 3, length: 1 },
-    constraint: "hard" as "hard" | "soft",
-    priority: 5,
-  });
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     loadData();
@@ -40,16 +51,18 @@ export default function AssignmentsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [assignmentsData, sectionsData, subjectsData, teachersData] = await Promise.all([
+      const [assignmentsData, sectionsData, subjectsData, teachersData, roomsData] = await Promise.all([
         api.assignments.getAll(),
         api.sections.getAll(),
         api.subjects.getAll(),
         api.teachers.getAll(),
+        api.rooms.getAll(),
       ]);
       setAssignments(assignmentsData);
       setSections(sectionsData);
       setSubjects(subjectsData);
       setTeachers(teachersData);
+      setRooms(roomsData);
     } catch (error) {
       console.error(error);
       toast.error("Failed to load data");
@@ -59,26 +72,31 @@ export default function AssignmentsPage() {
   };
 
   const resetForm = () => {
-    setForm({
-      sectionId: "",
-      subjectId: "",
-      teacherId: "",
-      sessions: { perWeek: 3, length: 1 },
-      constraint: "hard",
-      priority: 5,
-    });
+    setForm(emptyForm);
     setEditingId(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.sectionIds.length === 0) {
+      toast.error("Select at least one section");
+      return;
+    }
     setIsSubmitting(true);
     try {
+      // Empty optional fields are sent as null, which also clears them on update
+      const data = {
+        ...form,
+        batch: form.batch || null,
+        parallelGroup: form.parallelGroup.trim() || null,
+        roomId: form.roomId || null,
+        studentCount: form.studentCount === "" ? null : form.studentCount,
+      };
       if (editingId) {
-        await api.assignments.update(editingId, form);
+        await api.assignments.update(editingId, data);
         toast.success("Assignment updated successfully");
       } else {
-        await api.assignments.create(form);
+        await api.assignments.create(data);
         toast.success("Assignment created successfully");
       }
       resetForm();
@@ -93,12 +111,16 @@ export default function AssignmentsPage() {
 
   const handleEdit = (assignment: Assignment) => {
     setForm({
-      sectionId: typeof assignment.sectionId === "object" ? assignment.sectionId._id : assignment.sectionId,
-      subjectId: typeof assignment.subjectId === "object" ? assignment.subjectId._id : assignment.subjectId,
-      teacherId: typeof assignment.teacherId === "object" ? assignment.teacherId._id : assignment.teacherId,
+      sectionIds: assignment.sectionIds.map(idOf),
+      subjectId: idOf(assignment.subjectId),
+      teacherId: idOf(assignment.teacherId),
       sessions: assignment.sessions,
       constraint: assignment.constraint,
       priority: assignment.priority || 5,
+      batch: assignment.batch ?? "",
+      parallelGroup: assignment.parallelGroup ?? "",
+      roomId: idOf(assignment.roomId),
+      studentCount: assignment.studentCount ?? "",
     });
     setEditingId(assignment._id);
     setOpen(true);
@@ -121,15 +143,32 @@ export default function AssignmentsPage() {
     }
   };
 
+  const toggleSection = (id: string) => {
+    const sectionIds = form.sectionIds.includes(id) ? form.sectionIds.filter((s) => s !== id) : [...form.sectionIds, id];
+    // A batch only makes sense for a single section
+    setForm({ ...form, sectionIds, batch: sectionIds.length === 1 ? form.batch : "" });
+  };
+
+  const selectSubject = (subjectId: string) => {
+    const subject = subjects.find((s) => s._id === subjectId);
+    const length = subject?.defaultSessionLength ?? form.sessions.length;
+    setForm({ ...form, subjectId, sessions: { ...form.sessions, length } });
+  };
+
+  // Batches the batch picker offers: those of the one selected section
+  const singleSection = form.sectionIds.length === 1 ? sections.find((s) => s._id === form.sectionIds[0]) : undefined;
+  const existingGroups = [...new Set(assignments.map((a) => a.parallelGroup).filter((g): g is string => !!g))];
+
   const filteredAssignments = assignments.filter(a => {
-    const matchesSearch = 
-      (typeof a.sectionId === "object" && a.sectionId.code.toLowerCase().includes(search.toLowerCase())) ||
-      (typeof a.subjectId === "object" && a.subjectId.name.toLowerCase().includes(search.toLowerCase())) ||
-      (typeof a.teacherId === "object" && a.teacherId.name.toLowerCase().includes(search.toLowerCase()));
-    
+    const text = [
+      sectionsLabel(a),
+      docOf(a.subjectId)?.name,
+      docOf(a.subjectId)?.code,
+      docOf(a.teacherId)?.name,
+      a.parallelGroup,
+    ].join(" ").toLowerCase();
     const matchesFilter = filterConstraint === "all" || a.constraint === filterConstraint;
-    
-    return matchesSearch && matchesFilter;
+    return text.includes(search.toLowerCase()) && matchesFilter;
   });
 
   const stats = {
@@ -144,72 +183,136 @@ export default function AssignmentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Subject Assignments</h1>
-          <p className="text-muted-foreground mt-1">Map teachers to subjects for each section</p>
+          <p className="text-muted-foreground mt-1">Who teaches which subject to which sections, and how often</p>
         </div>
 
         <Dialog open={open} onOpenChange={handleDialogChange}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> New Assignment</Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingId ? "Edit Assignment" : "Create New Assignment"}</DialogTitle>
               <DialogDescription>
-                {editingId ? "Update assignment details" : "Assign a teacher to teach a subject for a specific section"}
+                Pick several sections for a combined class, or one section and a batch for a split lab.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="grid gap-4 py-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Section</Label>
-                  <select
-                    required
-                    className="w-full h-9 rounded-md border px-3 text-sm"
-                    value={form.sectionId}
-                    onChange={(e) => setForm({ ...form, sectionId: e.target.value })}
-                  >
-                    <option value="">Select Section</option>
-                    {sections.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        {s.code} - {s.name || s.branch}
-                      </option>
-                    ))}
-                  </select>
+              <div className="space-y-2">
+                <Label>
+                  Sections <span className="text-xs font-normal text-muted-foreground">({form.sectionIds.length} selected)</span>
+                </Label>
+                <div className="max-h-40 overflow-y-auto rounded-md border p-2 grid grid-cols-2 sm:grid-cols-3 gap-1">
+                  {sections.map((s) => (
+                    <label key={s._id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent cursor-pointer">
+                      <input type="checkbox" checked={form.sectionIds.includes(s._id)} onChange={() => toggleSection(s._id)} className="rounded border-gray-300" />
+                      <span className="font-medium">{s.code}</span>
+                      {s.strength ? <span className="text-xs text-muted-foreground">{s.strength}</span> : null}
+                    </label>
+                  ))}
+                  {sections.length === 0 && <p className="text-sm text-muted-foreground p-2">No sections yet.</p>}
                 </div>
+                {form.sectionIds.length > 1 && (
+                  <p className="text-xs text-muted-foreground">Combined class: all selected sections attend together.</p>
+                )}
+              </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Subject</Label>
                   <select
                     required
                     className="w-full h-9 rounded-md border px-3 text-sm"
                     value={form.subjectId}
-                    onChange={(e) => setForm({ ...form, subjectId: e.target.value })}
+                    onChange={(e) => selectSubject(e.target.value)}
                   >
                     <option value="">Select Subject</option>
                     {subjects.map((s) => (
                       <option key={s._id} value={s._id}>
-                        {s.code} - {s.name}
+                        {s.code} - {s.name}{s.category === "lab" ? " (lab)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Teacher</Label>
+                  <select
+                    required
+                    className="w-full h-9 rounded-md border px-3 text-sm"
+                    value={form.teacherId}
+                    onChange={(e) => setForm({ ...form, teacherId: e.target.value })}
+                  >
+                    <option value="">Select Teacher</option>
+                    {teachers.map((t) => (
+                      <option key={t._id} value={t._id}>
+                        {t.staffId} - {t.name}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label>Teacher</Label>
-                <select
-                  required
-                  className="w-full h-9 rounded-md border px-3 text-sm"
-                  value={form.teacherId}
-                  onChange={(e) => setForm({ ...form, teacherId: e.target.value })}
-                >
-                  <option value="">Select Teacher</option>
-                  {teachers.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.staffId} - {t.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Batch</Label>
+                  <select
+                    className="w-full h-9 rounded-md border px-3 text-sm disabled:opacity-50"
+                    value={form.batch}
+                    disabled={!singleSection?.batches.length}
+                    onChange={(e) => setForm({ ...form, batch: e.target.value })}
+                  >
+                    <option value="">Whole section</option>
+                    {singleSection?.batches.map((b) => (
+                      <option key={b} value={b}>Batch {b} only</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">For one section that is split into batches.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Parallel group</Label>
+                  <Input
+                    list="parallel-groups"
+                    placeholder="e.g. CSE3A-LAB or OE-1"
+                    value={form.parallelGroup}
+                    onChange={(e) => setForm({ ...form, parallelGroup: e.target.value })}
+                  />
+                  <datalist id="parallel-groups">
+                    {existingGroups.map((g) => <option key={g} value={g} />)}
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">Same label = scheduled at the same times (lab batches, electives).</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Room</Label>
+                  <select
+                    className="w-full h-9 rounded-md border px-3 text-sm"
+                    value={form.roomId}
+                    onChange={(e) => setForm({ ...form, roomId: e.target.value })}
+                  >
+                    <option value="">Any suitable room</option>
+                    {rooms.map((r) => (
+                      <option key={r._id} value={r._id}>
+                        {r.code} ({r.type}, {r.capacity} seats)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Expected students</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    placeholder="Everyone in the sections"
+                    value={form.studentCount}
+                    onChange={(e) => setForm({ ...form, studentCount: e.target.value ? parseInt(e.target.value) : "" })}
+                  />
+                  <p className="text-xs text-muted-foreground">Set this for electives, so a smaller room can be used.</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4 pt-2 border-t">
@@ -231,7 +334,7 @@ export default function AssignmentsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Session Length (hours)</Label>
+                  <Label>Session Length (periods)</Label>
                   <Input
                     required
                     type="number"
@@ -337,13 +440,13 @@ export default function AssignmentsPage() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search by section, subject, or teacher..."
+              placeholder="Search by section, subject, teacher or group..."
               className="pl-9"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <select
@@ -362,7 +465,7 @@ export default function AssignmentsPage() {
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground font-medium">
               <tr>
-                <th className="h-12 px-4 align-middle">Section</th>
+                <th className="h-12 px-4 align-middle">Sections</th>
                 <th className="h-12 px-4 align-middle">Subject</th>
                 <th className="h-12 px-4 align-middle">Teacher</th>
                 <th className="h-12 px-4 align-middle">Schedule</th>
@@ -391,11 +494,9 @@ export default function AssignmentsPage() {
                       <div className="flex items-center gap-2">
                         <Layers className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <div className="font-medium">
-                            {typeof a.sectionId === "object" ? a.sectionId.code : a.sectionId}
-                          </div>
+                          <div className="font-medium">{sectionsLabel(a)}</div>
                           <div className="text-xs text-muted-foreground">
-                            {typeof a.sectionId === "object" ? a.sectionId.branch : ""}
+                            {a.sectionIds.length > 1 ? "Combined class" : a.batch ? "Batch only" : docOf(a.sectionIds[0])?.branch}
                           </div>
                         </div>
                       </div>
@@ -404,12 +505,8 @@ export default function AssignmentsPage() {
                       <div className="flex items-center gap-2">
                         <BookOpen className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <div className="font-medium">
-                            {typeof a.subjectId === "object" ? a.subjectId.name : a.subjectId}
-                          </div>
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {typeof a.subjectId === "object" ? a.subjectId.code : ""}
-                          </div>
+                          <div className="font-medium">{docOf(a.subjectId)?.name ?? "?"}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{docOf(a.subjectId)?.code}</div>
                         </div>
                       </div>
                     </td>
@@ -417,12 +514,8 @@ export default function AssignmentsPage() {
                       <div className="flex items-center gap-2">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <div className="font-medium">
-                            {typeof a.teacherId === "object" ? a.teacherId.name : a.teacherId}
-                          </div>
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {typeof a.teacherId === "object" ? a.teacherId.staffId : ""}
-                          </div>
+                          <div className="font-medium">{docOf(a.teacherId)?.name ?? "?"}</div>
+                          <div className="text-xs text-muted-foreground font-mono">{docOf(a.teacherId)?.staffId}</div>
                         </div>
                       </div>
                     </td>
@@ -432,8 +525,23 @@ export default function AssignmentsPage() {
                           {a.sessions.perWeek}x/week
                         </span>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                          {a.sessions.length}h each
+                          {a.sessions.length} period{a.sessions.length > 1 ? "s" : ""} each
                         </span>
+                        {a.parallelGroup && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" title="Scheduled at the same times as the rest of its group">
+                            <Link2 className="h-3 w-3" /> {a.parallelGroup}
+                          </span>
+                        )}
+                        {docOf(a.roomId) && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-secondary" title="Always in this room">
+                            <Pin className="h-3 w-3" /> {docOf(a.roomId)?.code}
+                          </span>
+                        )}
+                        {a.studentCount ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-secondary">
+                            {a.studentCount} students
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td className="p-4">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/utils";
+import { docOf, errorMessage } from "@/lib/utils";
 import { Generation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,6 +97,7 @@ export default function TimetableListPage() {
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       {new Date(g.createdAt).toLocaleDateString()}
+                      {docOf(g.termId)?.name && <span>· {docOf(g.termId)?.name}</span>}
                     </div>
                   </div>
                   <div className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${

@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import { api } from "@/lib/api"
-import { errorMessage } from "@/lib/utils"
-import { Section } from "@/lib/types"
+import { docOf, errorMessage, idOf } from "@/lib/utils"
+import { Department, Section } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,21 +12,26 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Trash2, Loader2, Users, BookOpen, Edit } from "lucide-react"
 import { toast } from "sonner"
 
+const emptyForm = {
+  code: "",
+  name: "",
+  semester: 1,
+  branch: "",
+  strength: 60,
+  departmentId: "",
+  batches: "", // comma-separated, e.g. "B1, B2"
+}
+
 export default function SectionsPage() {
   const [sections, setSections] = useState<Section[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  const [form, setForm] = useState({
-    code: "",
-    name: "",
-    semester: 1,
-    branch: "",
-    strength: 60,
-  })
+  const [form, setForm] = useState(emptyForm)
 
   useEffect(() => {
     loadSections()
@@ -35,8 +40,9 @@ export default function SectionsPage() {
   const loadSections = async () => {
     try {
       setLoading(true)
-      const data = await api.sections.getAll()
+      const [data, departmentsData] = await Promise.all([api.sections.getAll(), api.departments.getAll()])
       setSections(data)
+      setDepartments(departmentsData)
     } catch (error) {
       console.error(error)
       toast.error("Failed to load sections")
@@ -46,7 +52,7 @@ export default function SectionsPage() {
   }
 
   const resetForm = () => {
-    setForm({ code: "", name: "", semester: 1, branch: "", strength: 60 })
+    setForm(emptyForm)
     setEditingId(null)
   }
 
@@ -54,11 +60,16 @@ export default function SectionsPage() {
     e.preventDefault()
     setIsSubmitting(true)
     try {
+      const data = {
+        ...form,
+        departmentId: form.departmentId || null,
+        batches: form.batches.split(",").map((b) => b.trim()).filter(Boolean),
+      }
       if (editingId) {
-        await api.sections.update(editingId, form)
+        await api.sections.update(editingId, data)
         toast.success("Section updated successfully")
       } else {
-        await api.sections.create(form)
+        await api.sections.create(data)
         toast.success("Section created successfully")
       }
       resetForm()
@@ -78,6 +89,8 @@ export default function SectionsPage() {
       semester: section.semester,
       branch: section.branch,
       strength: section.strength || 60,
+      departmentId: idOf(section.departmentId),
+      batches: section.batches.join(", "),
     })
     setEditingId(section._id)
     setOpen(true)
@@ -100,9 +113,10 @@ export default function SectionsPage() {
     }
   }
 
-  const filteredSections = sections.filter(s => 
+  const filteredSections = sections.filter(s =>
     s.code.toLowerCase().includes(search.toLowerCase()) ||
-    s.branch.toLowerCase().includes(search.toLowerCase())
+    s.branch.toLowerCase().includes(search.toLowerCase()) ||
+    (docOf(s.departmentId)?.code ?? "").toLowerCase().includes(search.toLowerCase())
   )
 
   return (
@@ -172,6 +186,32 @@ export default function SectionsPage() {
                         onChange={(e) => setForm({ ...form, strength: parseInt(e.target.value) })}
                      />
                   </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                     <Label htmlFor="department" className="text-right">Department</Label>
+                     <select
+                        id="department"
+                        className="col-span-3 h-9 rounded-md border px-3 text-sm"
+                        value={form.departmentId}
+                        onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                     >
+                        <option value="">None</option>
+                        {departments.map((d) => (
+                           <option key={d._id} value={d._id}>{d.code} - {d.name}</option>
+                        ))}
+                     </select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                     <Label htmlFor="batches" className="text-right">Lab batches</Label>
+                     <div className="col-span-3 space-y-1">
+                        <Input
+                           id="batches"
+                           placeholder="e.g. B1, B2"
+                           value={form.batches}
+                           onChange={(e) => setForm({ ...form, batches: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">Groups the section splits into for labs. Leave empty if it never splits.</p>
+                     </div>
+                  </div>
                   <DialogFooter>
                      <Button type="submit" disabled={isSubmitting}>
                         {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -225,21 +265,23 @@ export default function SectionsPage() {
                   <tr>
                      <th className="h-12 px-4 align-middle">Code</th>
                      <th className="h-12 px-4 align-middle">Branch</th>
+                     <th className="h-12 px-4 align-middle">Department</th>
                      <th className="h-12 px-4 align-middle">Semester</th>
                      <th className="h-12 px-4 align-middle">Strength</th>
+                     <th className="h-12 px-4 align-middle">Batches</th>
                      <th className="h-12 px-4 align-middle text-right">Actions</th>
                   </tr>
                </thead>
                <tbody className="divide-y">
                   {loading ? (
                      <tr>
-                        <td colSpan={5} className="h-24 text-center">
+                        <td colSpan={7} className="h-24 text-center">
                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                         </td>
                      </tr>
                   ) : filteredSections.length === 0 ? (
                      <tr>
-                        <td colSpan={5} className="h-32 text-center text-muted-foreground">
+                        <td colSpan={7} className="h-32 text-center text-muted-foreground">
                            No sections found. Add one to get started.
                         </td>
                      </tr>
@@ -248,12 +290,24 @@ export default function SectionsPage() {
                         <tr key={s._id} className="hover:bg-muted/50 transition-colors">
                            <td className="p-4 font-medium">{s.code}</td>
                            <td className="p-4">{s.branch}</td>
+                           <td className="p-4 text-muted-foreground">{docOf(s.departmentId)?.code ?? "-"}</td>
                            <td className="p-4">
                               <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold text-foreground">
                                  Sem {s.semester}
                               </span>
                            </td>
                            <td className="p-4 text-muted-foreground">{s.strength || "-"} students</td>
+                           <td className="p-4">
+                              {s.batches.length ? (
+                                 <div className="flex flex-wrap gap-1">
+                                    {s.batches.map((b) => (
+                                       <span key={b} className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono">{b}</span>
+                                    ))}
+                                 </div>
+                              ) : (
+                                 <span className="text-muted-foreground">-</span>
+                              )}
+                           </td>
                            <td className="p-4 text-right">
                               <div className="flex justify-end gap-2">
                                  <Button

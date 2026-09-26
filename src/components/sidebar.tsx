@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion } from "framer-motion"
-import { Menu, X, LayoutDashboard, Users, BookOpen, UserCheck, Calendar, ListChecks, Clock } from "lucide-react"
+import { Menu, X, LayoutDashboard, Users, BookOpen, UserCheck, Calendar, ListChecks, Clock, CalendarRange, Building2, DoorOpen } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function Sidebar() {
@@ -22,9 +22,12 @@ export default function Sidebar() {
 
   const links = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/terms", label: "Terms", icon: CalendarRange },
+    { href: "/dashboard/departments", label: "Departments", icon: Building2 },
     { href: "/dashboard/sections", label: "Sections", icon: BookOpen },
     { href: "/dashboard/subjects", label: "Subjects", icon: ListChecks },
     { href: "/dashboard/teachers", label: "Teachers", icon: Users },
+    { href: "/dashboard/rooms", label: "Rooms", icon: DoorOpen },
     { href: "/dashboard/availability", label: "Availability", icon: Clock },
     { href: "/dashboard/assignments", label: "Assignments", icon: UserCheck },
     { href: "/dashboard/timetable", label: "Timetable", icon: Calendar },

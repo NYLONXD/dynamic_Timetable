@@ -1,52 +1,78 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/utils";
-import { Generation, TimetableSlot, Section } from "@/lib/types";
+import { docOf, errorMessage, idOf, periodTime } from "@/lib/utils";
+import { Generation, Room, Section, Teacher, TimetableSlot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Calendar, Clock, AlertTriangle, CheckCircle2, Users, ArrowLeft } from "lucide-react";
+import { Loader2, Calendar, Clock, AlertTriangle, CheckCircle2, Users, ArrowLeft, DoorOpen, Layers, CalendarRange } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+
+type View = "section" | "teacher" | "room";
+
+const VIEWS: { value: View; label: string; icon: typeof Users }[] = [
+  { value: "section", label: "Sections", icon: Layers },
+  { value: "teacher", label: "Teachers", icon: Users },
+  { value: "room", label: "Rooms", icon: DoorOpen },
+];
+
+// Unique records, sorted by label
+function uniqueBy<T extends { _id: string }>(items: (T | undefined)[], label: (item: T) => string) {
+  const byId = new Map<string, T>();
+  for (const item of items) if (item) byId.set(item._id, item);
+  return [...byId.values()]
+    .map((item) => ({ id: item._id, label: label(item) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+const sectionCodes = (slot: TimetableSlot, except?: string) =>
+  slot.sectionIds.filter((s) => idOf(s) !== except).map((s) => docOf(s)?.code ?? "?").join(" + ");
 
 export default function TimetableViewPage() {
   const params = useParams();
   const router = useRouter();
   const [generation, setGeneration] = useState<Generation | null>(null);
-  const [sections, setSections] = useState<Section[]>([]);
-  const [selectedSection, setSelectedSection] = useState<string>("");
+  const [view, setView] = useState<View>("section");
+  const [selected, setSelected] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadTimetable();
-  }, [params.id]);
+  const slots = useMemo(() => generation?.slots ?? [], [generation]);
 
-  const loadTimetable = async () => {
+  // What the timetable can be viewed by: every section, teacher and room it uses
+  const options = useMemo(
+    () => ({
+      section: uniqueBy(slots.flatMap((s) => s.sectionIds.map((x) => docOf<Section>(x))), (s) => `${s.code}${s.name ? ` - ${s.name}` : ""}`),
+      teacher: uniqueBy(slots.map((s) => docOf<Teacher>(s.teacherId)), (t) => t.name),
+      room: uniqueBy(slots.map((s) => docOf<Room>(s.roomId)), (r) => `${r.code} (${r.capacity} seats)`),
+    }),
+    [slots]
+  );
+
+  const loadTimetable = useCallback(async () => {
     try {
-      const data = await api.timetable.getOne(params.id as string);
+      const data: Generation = await api.timetable.getOne(params.id as string);
       setGeneration(data);
-      
-      const sectionObjects = data.slots
-        ?.filter((s: TimetableSlot) => typeof s.sectionId === "object")
-        .map((s: TimetableSlot) => s.sectionId as Section)
-        .filter((s: Section, i: number, arr: Section[]) => 
-          arr.findIndex(x => x._id === s._id) === i
-        ) || [];
-      
-      setSections(sectionObjects);
-      if (sectionObjects.length > 0) {
-        setSelectedSection(sectionObjects[0]._id);
-      }
     } catch (error) {
       console.error(error);
       toast.error("Failed to load timetable");
     } finally {
       setLoading(false);
     }
-  };
+  }, [params.id]);
+
+  useEffect(() => {
+    loadTimetable();
+  }, [loadTimetable]);
+
+  // Keep a valid selection for the current view
+  useEffect(() => {
+    if (!options[view].some((o) => o.id === selected)) {
+      setSelected(options[view][0]?.id ?? "");
+    }
+  }, [options, view, selected]);
 
   const handleActivate = async () => {
     try {
@@ -54,7 +80,7 @@ export default function TimetableViewPage() {
       loadTimetable();
       toast.success("Timetable activated successfully");
     } catch (error) {
-      toast.error(errorMessage(error, "Failed to activate timetable"));
+      toast.error(errorMessage(error, "Failed to activate timetable"), { duration: 10000 });
     }
   };
 
@@ -77,9 +103,40 @@ export default function TimetableViewPage() {
     );
   }
 
-  const sectionSlots = generation.slots?.filter(
-    (s) => (typeof s.sectionId === "object" ? s.sectionId._id : s.sectionId) === selectedSection
-  ) || [];
+  const { config } = generation;
+  const breaks = new Set(config.breakPeriods ?? []);
+  const termName = docOf(generation.termId as { _id: string; name: string } | string | undefined)?.name;
+
+  const shown = slots.filter((s) =>
+    view === "section" ? s.sectionIds.some((x) => idOf(x) === selected) :
+    view === "teacher" ? idOf(s.teacherId) === selected :
+    idOf(s.roomId) === selected
+  );
+
+  // One class in a cell: what it is, plus the two other things the current view doesn't show
+  const renderEntry = (slot: TimetableSlot) => {
+    const subject = docOf(slot.subjectId);
+    const teacher = docOf(slot.teacherId)?.name;
+    const room = docOf(slot.roomId)?.code;
+    const others = view === "section" ? sectionCodes(slot, selected) : "";
+    const lines =
+      view === "section" ? [teacher, room, others && `with ${others}`] :
+      view === "teacher" ? [sectionCodes(slot) + (slot.batch ? ` ${slot.batch}` : ""), room] :
+      [sectionCodes(slot) + (slot.batch ? ` ${slot.batch}` : ""), teacher];
+    return (
+      <div key={slot._id} className="bg-primary/10 hover:bg-primary/20 transition-colors p-2 rounded-lg border border-primary/20 text-left">
+        <div className="flex items-center gap-1 font-semibold text-sm">
+          {subject?.code ?? "?"}
+          {view === "section" && slot.batch && (
+            <span className="rounded bg-background px-1 text-[10px] font-mono">{slot.batch}</span>
+          )}
+        </div>
+        {lines.filter(Boolean).map((line, i) => (
+          <div key={i} className="text-xs text-muted-foreground truncate">{line}</div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -93,6 +150,12 @@ export default function TimetableViewPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{generation.name}</h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+              {termName && (
+                <span className="flex items-center gap-1">
+                  <CalendarRange className="h-4 w-4" />
+                  {termName}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
                 {new Date(generation.createdAt).toLocaleDateString()}
@@ -122,43 +185,21 @@ export default function TimetableViewPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Slots</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{generation.slots?.length || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Conflicts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {generation.conflicts?.length || 0}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Sections</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{sections.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Working Days</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{generation.config.days.length}</div>
-          </CardContent>
-        </Card>
+        {[
+          { label: "Scheduled Periods", value: slots.length },
+          { label: "Conflicts", value: generation.conflicts?.length ?? 0, className: "text-red-600 dark:text-red-400" },
+          { label: "Sections", value: options.section.length },
+          { label: "Rooms Used", value: options.room.length },
+        ].map((stat) => (
+          <Card key={stat.label}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${stat.className ?? ""}`}>{stat.value}</div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       {generation.conflicts && generation.conflicts.length > 0 && (
@@ -170,9 +211,11 @@ export default function TimetableViewPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {generation.conflicts.map((c, i) => (
-              <div key={i} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
-                <span className="font-medium uppercase text-xs mt-0.5 px-1.5 py-0.5 bg-red-200 dark:bg-red-800 rounded">
+            {generation.conflicts.map((c) => (
+              <div key={c._id} className="text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
+                <span className={`font-medium uppercase text-xs mt-0.5 px-1.5 py-0.5 rounded ${
+                  c.severity === "error" ? "bg-red-200 dark:bg-red-800" : "bg-amber-200 text-amber-800 dark:bg-amber-800 dark:text-amber-200"
+                }`}>
                   {c.severity}
                 </span>
                 <span className="flex-1">{c.message}</span>
@@ -184,20 +227,29 @@ export default function TimetableViewPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Section View
-            </CardTitle>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="inline-flex rounded-lg bg-muted p-1">
+              {VIEWS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setView(value)}
+                  className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium transition-colors ${
+                    view === value ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" /> {label}
+                </button>
+              ))}
+            </div>
             <select
               className="h-9 rounded-md border bg-transparent px-3 text-sm shadow-sm"
-              value={selectedSection}
-              onChange={(e) => setSelectedSection(e.target.value)}
+              value={selected}
+              onChange={(e) => setSelected(e.target.value)}
             >
-              {sections.map((s) => (
-                <option key={s._id} value={s._id}>
-                  {s.code} - {s.name || s.branch}
-                </option>
+              {options[view].length === 0 && <option value="">None in this timetable</option>}
+              {options[view].map((o) => (
+                <option key={o.id} value={o.id}>{o.label}</option>
               ))}
             </select>
           </div>
@@ -208,7 +260,7 @@ export default function TimetableViewPage() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left p-3 font-medium bg-muted/50">Period</th>
-                  {generation.config.days.map((day) => (
+                  {config.days.map((day) => (
                     <th key={day} className="text-center p-3 font-medium bg-muted/50">
                       {day}
                     </th>
@@ -216,31 +268,36 @@ export default function TimetableViewPage() {
                 </tr>
               </thead>
               <tbody>
-                {Array.from({ length: generation.config.periodsPerDay }, (_, i) => i + 1).map((period) => (
-                  <tr key={period} className="border-b">
-                    <td className="p-3 font-semibold bg-muted/30">Period {period}</td>
-                    {generation.config.days.map((day) => {
-                      const slot = sectionSlots.find((s) => s.day === day && s.period === period);
-                      
-                      return (
-                        <td key={day} className="p-2 text-center">
-                          {slot ? (
-                            <div className="bg-primary/10 hover:bg-primary/20 transition-colors p-3 rounded-lg border border-primary/20">
-                              <div className="font-semibold text-sm">
-                                {typeof slot.subjectId === "object" ? slot.subjectId.code : "?"}
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {typeof slot.teacherId === "object" ? slot.teacherId.name : "?"}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-muted-foreground text-sm">—</div>
-                          )}
+                {Array.from({ length: config.periodsPerDay }, (_, i) => i + 1).map((period) => {
+                  const time = periodTime(config.periodTimes, period);
+                  const breakName = period === config.lunchPeriod ? "Lunch" : breaks.has(period) ? "Break" : "";
+                  return (
+                    <tr key={period} className="border-b">
+                      <td className="p-3 bg-muted/30 whitespace-nowrap">
+                        <div className="font-semibold">Period {period}</div>
+                        {time && <div className="text-xs text-muted-foreground">{time}</div>}
+                      </td>
+                      {breakName ? (
+                        <td colSpan={config.days.length} className="p-2 text-center text-sm text-muted-foreground bg-muted/20 tracking-widest uppercase">
+                          {breakName}
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                      ) : (
+                        config.days.map((day) => {
+                          const here = shown.filter((s) => s.day === day && s.period === period);
+                          return (
+                            <td key={day} className="p-2 text-center align-top">
+                              {here.length > 0 ? (
+                                <div className="space-y-1">{here.map(renderEntry)}</div>
+                              ) : (
+                                <div className="text-muted-foreground text-sm">—</div>
+                              )}
+                            </td>
+                          );
+                        })
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

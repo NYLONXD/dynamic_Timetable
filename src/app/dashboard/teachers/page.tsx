@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/utils";
-import { Teacher } from "@/lib/types";
+import { docOf, errorMessage, idOf } from "@/lib/utils";
+import { Department, Teacher } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,22 +12,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Plus, Search, Trash2, Loader2, Mail, Clock, Edit } from "lucide-react";
 import { toast } from "sonner";
 
+const emptyForm = {
+  staffId: "",
+  name: "",
+  email: "",
+  departmentId: "",
+  maxHoursPerDay: 6,
+  maxHoursPerWeek: 30,
+};
+
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
-    staffId: "",
-    name: "",
-    email: "",
-    department: "",
-    maxHoursPerDay: 6,
-    maxHoursPerWeek: 30,
-  });
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
     loadTeachers();
@@ -36,8 +39,9 @@ export default function TeachersPage() {
   const loadTeachers = async () => {
     try {
       setLoading(true);
-      const data = await api.teachers.getAll();
+      const [data, departmentsData] = await Promise.all([api.teachers.getAll(), api.departments.getAll()]);
       setTeachers(data);
+      setDepartments(departmentsData);
     } catch (error) {
       console.error(error);
       toast.error("Failed to load teachers");
@@ -47,7 +51,7 @@ export default function TeachersPage() {
   };
 
   const resetForm = () => {
-    setForm({ staffId: "", name: "", email: "", department: "", maxHoursPerDay: 6, maxHoursPerWeek: 30 });
+    setForm(emptyForm);
     setEditingId(null);
   };
 
@@ -55,11 +59,16 @@ export default function TeachersPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      const data = {
+        ...form,
+        email: form.email || undefined, // an empty string would fail the email check
+        departmentId: form.departmentId || null,
+      };
       if (editingId) {
-        await api.teachers.update(editingId, form);
+        await api.teachers.update(editingId, data);
         toast.success("Teacher updated successfully");
       } else {
-        await api.teachers.create(form);
+        await api.teachers.create(data);
         toast.success("Teacher created successfully");
       }
       resetForm();
@@ -77,7 +86,7 @@ export default function TeachersPage() {
       staffId: teacher.staffId,
       name: teacher.name,
       email: teacher.email || "",
-      department: teacher.department || "",
+      departmentId: idOf(teacher.departmentId),
       maxHoursPerDay: teacher.maxHoursPerDay || 6,
       maxHoursPerWeek: teacher.maxHoursPerWeek || 30,
     });
@@ -134,7 +143,17 @@ export default function TeachersPage() {
                  </div>
                  <div className="space-y-2">
                     <Label htmlFor="department">Department</Label>
-                    <Input id="department" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="Computer Science" />
+                    <select
+                       id="department"
+                       className="w-full h-9 rounded-md border px-3 text-sm"
+                       value={form.departmentId}
+                       onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
+                    >
+                       <option value="">None</option>
+                       {departments.map((d) => (
+                          <option key={d._id} value={d._id}>{d.code}</option>
+                       ))}
+                    </select>
                  </div>
               </div>
               <div className="space-y-2">
@@ -202,7 +221,7 @@ export default function TeachersPage() {
                                 </div>
                              ) : "-"}
                           </td>
-                          <td className="p-4">{t.department || "-"}</td>
+                          <td className="p-4">{docOf(t.departmentId)?.code ?? "-"}</td>
                           <td className="p-4">
                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                 <span className="flex items-center gap-1 bg-secondary px-2 py-0.5 rounded">

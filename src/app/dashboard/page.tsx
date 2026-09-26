@@ -51,7 +51,7 @@ export default function DashboardPage() {
     <div className="space-y-8 max-w-7xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Welcome back. Here is an overview of your institute's schedule data.</p>
+        <p className="text-muted-foreground mt-2">Welcome back. Here is an overview of your institute&apos;s schedule data.</p>
       </div>
 
       {/* Stats Grid */}
@@ -88,7 +88,7 @@ export default function DashboardPage() {
                    </div>
                    <div>
                       <h4 className="font-semibold">Generate Timetable</h4>
-                      <p className="text-xs text-muted-foreground">Run the genetic algorithm</p>
+                      <p className="text-xs text-muted-foreground">Run the scheduler</p>
                    </div>
                    <ArrowRight className="ml-auto h-4 w-4 text-muted-foreground" />
                 </div>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                  <span className="text-sm font-medium">Algorithm Version</span>
-                 <span className="text-xs bg-secondary px-2 py-1 rounded">v2.1 (Genetic)</span>
+                 <span className="text-xs bg-secondary px-2 py-1 rounded">Greedy (first fit)</span>
               </div>
                <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-md dark:bg-blue-900/20 dark:text-blue-300">
                   <strong>Tip:</strong> Ensure all teachers have assigned subjects before generating.

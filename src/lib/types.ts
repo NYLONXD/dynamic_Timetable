@@ -107,6 +107,8 @@ export interface Generation {
   generationTime?: number;
   createdAt: string;
   updatedAt?: string;
-  slots?: TimetableSlot[];
-  conflicts?: Conflict[];
+  slots?: TimetableSlot[]; // only from GET /timetable/:id
+  conflicts?: Conflict[]; // only from GET /timetable/:id
+  slotCount?: number; // only from GET /timetable
+  conflictCount?: number; // only from GET /timetable
 }

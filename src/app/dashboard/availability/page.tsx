@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Teacher, TeacherAvailability } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,8 +65,8 @@ export default function TeacherAvailabilityPage() {
       setOpen(false);
       loadData();
       toast.success("Availability record created successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create availability record");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to create availability record"));
     } finally {
       setIsSubmitting(false);
     }
@@ -76,8 +77,8 @@ export default function TeacherAvailabilityPage() {
       await api.availability.delete(id);
       loadData();
       toast.success("Availability record deleted");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete availability record");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete availability record"));
     }
   };
 
@@ -136,7 +137,7 @@ export default function TeacherAvailabilityPage() {
                   <select
                     className="w-full h-9 rounded-md border px-3 text-sm"
                     value={form.day}
-                    onChange={(e) => setForm({ ...form, day: e.target.value as any })}
+                    onChange={(e) => setForm({ ...form, day: e.target.value as typeof form.day })}
                   >
                     <option value="Monday">Monday</option>
                     <option value="Tuesday">Tuesday</option>
@@ -164,7 +165,7 @@ export default function TeacherAvailabilityPage() {
                 <select
                   className="w-full h-9 rounded-md border px-3 text-sm"
                   value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value as any })}
+                  onChange={(e) => setForm({ ...form, type: e.target.value as typeof form.type })}
                 >
                   <option value="unavailable">Unavailable (Hard Constraint)</option>
                   <option value="preferred">Preferred (Soft Constraint)</option>

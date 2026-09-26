@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Generation, TimetableSlot, Section } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -52,8 +53,8 @@ export default function TimetableViewPage() {
       await api.timetable.activate(params.id as string);
       loadTimetable();
       toast.success("Timetable activated successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to activate timetable");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to activate timetable"));
     }
   };
 

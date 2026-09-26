@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Assignment } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,8 +67,8 @@ export default function GenerateTimetablePage() {
       });
       toast.success("Timetable generated successfully!");
       router.push(`/dashboard/timetable/${result._id}`);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to generate timetable");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to generate timetable"));
     } finally {
       setLoading(false);
     }
@@ -98,8 +99,8 @@ export default function GenerateTimetablePage() {
       {loading && (
         <div className="text-center py-8">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Generating timetable using genetic algorithm...</p>
-          <p className="text-sm text-muted-foreground mt-2">This may take 10-30 seconds</p>
+          <p>Generating timetable...</p>
+          <p className="text-sm text-muted-foreground mt-2">This usually takes a few seconds</p>
         </div>
       )}
 

@@ -65,7 +65,7 @@ export default function LandingPage() {
                 {
                   icon: Clock,
                   title: "Instant Generation",
-                  desc: "Create conflict-free timetables in seconds using our advanced genetic algorithms."
+                  desc: "Create conflict-free timetables in seconds."
                 },
                 {
                   icon: CheckCircle2,

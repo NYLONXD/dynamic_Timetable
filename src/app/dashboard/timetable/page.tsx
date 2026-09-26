@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Generation } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,8 +36,8 @@ export default function TimetableListPage() {
       await api.timetable.delete(id);
       loadGenerations();
       toast.success("Timetable deleted successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete timetable");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete timetable"));
     }
   };
 
@@ -45,8 +46,8 @@ export default function TimetableListPage() {
       await api.timetable.activate(id);
       loadGenerations();
       toast.success("Timetable activated successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to activate timetable");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to activate timetable"));
     }
   };
 
@@ -78,7 +79,7 @@ export default function TimetableListPage() {
             </div>
             <h3 className="text-lg font-semibold mb-2">No timetables generated yet</h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-              Click "Generate New Timetable" to create your first schedule using the genetic algorithm
+              Click &quot;Generate New Timetable&quot; to create your first schedule
             </p>
             <Button onClick={() => router.push("/dashboard/timetable/generate")}>
               <Zap className="mr-2 h-4 w-4" /> Get Started
@@ -124,18 +125,18 @@ export default function TimetableListPage() {
                   </div>
                   <div>
                     <div className="text-muted-foreground text-xs mb-1">Total Slots</div>
-                    <div className="font-semibold">{g.slots?.length || 0}</div>
+                    <div className="font-semibold">{g.slotCount ?? 0}</div>
                   </div>
                 </div>
 
-                {g.conflicts && g.conflicts.length > 0 && (
+                {g.conflictCount ? (
                   <div className="flex items-center gap-2 p-2 bg-red-50 dark:bg-red-900/20 rounded-md text-xs">
                     <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                     <span className="text-red-700 dark:text-red-300">
-                      {g.conflicts.length} conflict{g.conflicts.length > 1 ? 's' : ''} detected
+                      {g.conflictCount} conflict{g.conflictCount > 1 ? 's' : ''} detected
                     </span>
                   </div>
-                )}
+                ) : null}
 
                 <div className="flex gap-2 pt-2 border-t">
                   <Button

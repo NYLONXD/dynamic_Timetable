@@ -17,12 +17,12 @@ export const api = {
   sections: {
     getAll: () => fetch(`${BASE_URL}/sections`).then(handleResponse),
     getOne: (id: string) => fetch(`${BASE_URL}/sections/${id}`).then(handleResponse),
-    create: (data: any) => fetch(`${BASE_URL}/sections`, {
+    create: (data: unknown) => fetch(`${BASE_URL}/sections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/sections/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/sections/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -34,12 +34,12 @@ export const api = {
   subjects: {
     getAll: () => fetch(`${BASE_URL}/subjects`).then(handleResponse),
     getOne: (id: string) => fetch(`${BASE_URL}/subjects/${id}`).then(handleResponse),
-    create: (data: any) => fetch(`${BASE_URL}/subjects`, {
+    create: (data: unknown) => fetch(`${BASE_URL}/subjects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/subjects/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/subjects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -51,12 +51,12 @@ export const api = {
   teachers: {
     getAll: () => fetch(`${BASE_URL}/teachers`).then(handleResponse),
     getOne: (id: string) => fetch(`${BASE_URL}/teachers/${id}`).then(handleResponse),
-    create: (data: any) => fetch(`${BASE_URL}/teachers`, {
+    create: (data: unknown) => fetch(`${BASE_URL}/teachers`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/teachers/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/teachers/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -71,12 +71,12 @@ export const api = {
       return fetch(url).then(handleResponse);
     },
     getOne: (id: string) => fetch(`${BASE_URL}/teacher-availability/${id}`).then(handleResponse),
-    create: (data: any) => fetch(`${BASE_URL}/teacher-availability`, {
+    create: (data: unknown) => fetch(`${BASE_URL}/teacher-availability`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/teacher-availability/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/teacher-availability/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -88,12 +88,12 @@ export const api = {
   assignments: {
     getAll: () => fetch(`${BASE_URL}/assignments`).then(handleResponse),
     getOne: (id: string) => fetch(`${BASE_URL}/assignments/${id}`).then(handleResponse),
-    create: (data: any) => fetch(`${BASE_URL}/assignments`, {
+    create: (data: unknown) => fetch(`${BASE_URL}/assignments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/assignments/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/assignments/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -103,20 +103,20 @@ export const api = {
 
   // Timetable
   timetable: {
-    generate: (data: any) => fetch(`${BASE_URL}/timetable/generate`, {
+    generate: (data: unknown) => fetch(`${BASE_URL}/timetable/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
     getAll: () => fetch(`${BASE_URL}/timetable`).then(handleResponse),
     getOne: (id: string) => fetch(`${BASE_URL}/timetable/${id}`).then(handleResponse),
-    update: (id: string, data: any) => fetch(`${BASE_URL}/timetable/${id}`, {
+    update: (id: string, data: unknown) => fetch(`${BASE_URL}/timetable/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(handleResponse),
     delete: (id: string) => fetch(`${BASE_URL}/timetable/${id}`, { method: 'DELETE' }).then(handleResponse),
-    updateSlot: (generationId: string, slotData: any) => fetch(`${BASE_URL}/timetable/${generationId}/slot`, {
+    updateSlot: (generationId: string, slotData: unknown) => fetch(`${BASE_URL}/timetable/${generationId}/slot`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(slotData),

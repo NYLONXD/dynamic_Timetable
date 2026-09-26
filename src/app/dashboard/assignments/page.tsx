@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Assignment, Section, Subject, Teacher } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,8 +84,8 @@ export default function AssignmentsPage() {
       resetForm();
       setOpen(false);
       loadData();
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} assignment`);
+    } catch (error) {
+      toast.error(errorMessage(error, `Failed to ${editingId ? "update" : "create"} assignment`));
     } finally {
       setIsSubmitting(false);
     }
@@ -108,8 +109,8 @@ export default function AssignmentsPage() {
       await api.assignments.delete(id);
       loadData();
       toast.success("Assignment deleted successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete assignment");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete assignment"));
     }
   };
 
@@ -254,7 +255,7 @@ export default function AssignmentsPage() {
                   <select
                     className="w-full h-9 rounded-md border px-3 text-sm"
                     value={form.constraint}
-                    onChange={(e) => setForm({ ...form, constraint: e.target.value as any })}
+                    onChange={(e) => setForm({ ...form, constraint: e.target.value as typeof form.constraint })}
                   >
                     <option value="hard">Hard (Must Satisfy)</option>
                     <option value="soft">Soft (Try to Satisfy)</option>

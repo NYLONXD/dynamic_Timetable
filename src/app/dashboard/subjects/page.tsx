@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Subject } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +72,8 @@ export default function SubjectsPage() {
       resetForm();
       setOpen(false);
       loadSubjects();
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} subject`);
+    } catch (error) {
+      toast.error(errorMessage(error, `Failed to ${editingId ? "update" : "create"} subject`));
     } finally {
       setIsSubmitting(false);
     }
@@ -96,8 +97,8 @@ export default function SubjectsPage() {
       await api.subjects.delete(id);
       loadSubjects();
       toast.success("Subject deleted successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete subject");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete subject"));
     }
   };
 
@@ -155,7 +156,7 @@ export default function SubjectsPage() {
                 <select 
                   className="col-span-3 h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   value={form.category}
-                  onChange={(e) => setForm({ ...form, category: e.target.value as any })}
+                  onChange={(e) => setForm({ ...form, category: e.target.value as typeof form.category })}
                 >
                   <option value="theory">Theory</option>
                   <option value="lab">Lab (Practical)</option>

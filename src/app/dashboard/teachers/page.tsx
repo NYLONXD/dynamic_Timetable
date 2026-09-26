@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { errorMessage } from "@/lib/utils";
 import { Teacher } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,8 +65,8 @@ export default function TeachersPage() {
       resetForm();
       setOpen(false);
       loadTeachers();
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} teacher`);
+    } catch (error) {
+      toast.error(errorMessage(error, `Failed to ${editingId ? "update" : "create"} teacher`));
     } finally {
       setIsSubmitting(false);
     }
@@ -89,8 +90,8 @@ export default function TeachersPage() {
       await api.teachers.delete(id);
       loadTeachers();
       toast.success("Teacher deleted successfully");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete teacher");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete teacher"));
     }
   };
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { api } from "@/lib/api"
+import { errorMessage } from "@/lib/utils"
 import { Section } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -63,8 +64,8 @@ export default function SectionsPage() {
       resetForm()
       setOpen(false)
       loadSections()
-    } catch (error: any) {
-      toast.error(error.message || `Failed to ${editingId ? "update" : "create"} section`)
+    } catch (error) {
+      toast.error(errorMessage(error, `Failed to ${editingId ? "update" : "create"} section`))
     } finally {
       setIsSubmitting(false)
     }
@@ -87,8 +88,8 @@ export default function SectionsPage() {
       await api.sections.delete(id)
       loadSections()
       toast.success("Section deleted successfully")
-    } catch (error: any) {
-      toast.error(error.message || "Failed to delete section")
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to delete section"))
     }
   }
 
